@@ -1,4 +1,5 @@
-// Hand-written sentences for each language.
+// Hand-written sentences for each language. These match the app's language picker
+// (AppLanguage in Medicationdetailview.swift) plus Vietnamese.
 //
 // Numbers are always passed in as digits (8, not "eight") and dropped into a fixed
 // sentence, so "every 8 hours" can never be mistranslated. Only the words around
@@ -175,4 +176,75 @@ export const LANGUAGES = {
     autoTranslated: '이 부분은 자동 번역되었습니다. 영어 원문은 다음과 같습니다:',
     notTranslated: '이 부분은 번역할 수 없었습니다. 영어 원문:',
   },
+
+  fr: {
+    name: 'French',
+    locale: 'fr-FR',
+    listSeparator: ', ',
+    units: { MG: 'milligrammes', MCG: 'microgrammes', ML: 'millilitres', G: 'grammes' },
+    forms: {
+      tablet: { noun: 'comprimé', count: (n) => (n === 1 ? 'comprimé' : 'comprimés') },
+      capsule: { noun: 'gélule', count: (n) => (n === 1 ? 'gélule' : 'gélules') },
+    },
+    dose: (n, unit, byMouth) => `Prenez ${n} ${unit}${byMouth ? ' par voie orale' : ''}.`,
+    everyHours: (n) => (n === 1 ? 'Toutes les heures.' : `Toutes les ${n} heures.`),
+    everyRange: (a, b) => `Toutes les ${a} à ${b} heures.`,
+    perDay: (n) => (n === 1 ? 'Une fois par jour.' : n === 2 ? 'Deux fois par jour.' : `${n} fois par jour.`),
+    asNeeded: 'À prendre seulement en cas de besoin.',
+    withFood: 'À prendre pendant un repas.',
+    emptyStomach: 'À prendre à jeun.',
+    times: { morning: 'matin', midday: 'midi', afternoon: 'après-midi', evening: 'soir', bedtime: 'au coucher' },
+    timesLine: (list) => `Moments de prise : ${list}.`,
+    quantity: (n) => `Quantité délivrée : ${n}.`,
+    expires: (d) => `Ne pas utiliser après le ${d}.`,
+    lastTaken: (t) => `Dernière prise enregistrée : ${t}.`,
+    pharmacy: (p) => `Pharmacie : ${p}.`,
+    directions: 'Mode d’emploi :',
+    warnings: 'Avertissements :',
+    autoTranslated: 'Cette partie a été traduite automatiquement. Le texte original en anglais est :',
+    notTranslated: 'Cette partie n’a pas pu être traduite. En anglais :',
+  },
+
+  ar: {
+    name: 'Arabic',
+    // Gregorian calendar and 0-9 digits (plain "ar-SA" would use the Hijri calendar).
+    locale: 'ar-u-ca-gregory-nu-latn',
+    listSeparator: '، ',
+    units: { MG: 'ملليغرام', MCG: 'ميكروغرام', ML: 'مليلتر', G: 'غرام' },
+    // Arabic changes the noun for 1, 2, 3-10 and 11+, so `count` returns the whole phrase.
+    forms: {
+      tablet: {
+        noun: 'قرص',
+        count: (n) => (n === 1 ? 'قرصًا واحدًا' : n === 2 ? 'قرصين' : n <= 10 ? `${n} أقراص` : `${n} قرصًا`),
+      },
+      capsule: {
+        noun: 'كبسولة',
+        count: (n) => (n === 1 ? 'كبسولة واحدة' : n === 2 ? 'كبسولتين' : n <= 10 ? `${n} كبسولات` : `${n} كبسولة`),
+      },
+    },
+    dose: (n, unit, byMouth) => `تناول ${unit}${byMouth ? ' عن طريق الفم' : ''}.`,
+    everyHours: (n) => (n === 1 ? 'كل ساعة.' : n === 2 ? 'كل ساعتين.' : n <= 10 ? `كل ${n} ساعات.` : `كل ${n} ساعة.`),
+    everyRange: (a, b) => `كل ${a} إلى ${b} ساعات.`,
+    perDay: (n) => (n === 1 ? 'مرة واحدة يوميًا.' : n === 2 ? 'مرتين يوميًا.' : n <= 10 ? `${n} مرات يوميًا.` : `${n} مرة يوميًا.`),
+    asNeeded: 'تناوله فقط عند الحاجة.',
+    withFood: 'تناوله مع الطعام.',
+    emptyStomach: 'تناوله على معدة فارغة.',
+    times: { morning: 'الصباح', midday: 'الظهر', afternoon: 'بعد الظهر', evening: 'المساء', bedtime: 'قبل النوم' },
+    timesLine: (list) => `مواعيد الجرعات: ${list}.`,
+    quantity: (n) => `الكمية المصروفة: ${n}.`,
+    expires: (d) => `لا تستخدمه بعد ${d}.`,
+    lastTaken: (t) => `آخر جرعة مسجلة: ${t}.`,
+    pharmacy: (p) => `الصيدلية: ${p}.`,
+    directions: 'طريقة الاستخدام:',
+    warnings: 'تحذيرات:',
+    autoTranslated: 'تمت ترجمة هذا الجزء تلقائيًا. النص الأصلي بالإنجليزية هو:',
+    notTranslated: 'تعذرت ترجمة هذا الجزء. بالإنجليزية:',
+  },
 };
+
+// Accepts the app's codes too: "zh-Hans" -> "zh", "es-MX" -> "es".
+export function resolveLanguage(code = 'en') {
+  const lower = String(code).toLowerCase();
+  const base = lower.startsWith('zh') ? 'zh' : lower.split('-')[0];
+  return LANGUAGES[base] ? base : null;
+}

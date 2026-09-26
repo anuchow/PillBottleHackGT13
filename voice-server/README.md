@@ -1,7 +1,11 @@
 # Pill Point Voice Server
 
-Reads a scanned prescription aloud in **English, Spanish, Hindi, Chinese, Vietnamese, and Korean**,
-for visually impaired and non-English-speaking users.
+Reads a scanned prescription aloud in **English, Spanish, Hindi, Chinese, Vietnamese, Korean,
+French, and Arabic**, for visually impaired and non-English-speaking users. The app's language
+codes work as-is (`zh-Hans`, `es-MX`, …).
+
+**Connecting the iOS app:** see [ios/INTEGRATION.md](ios/INTEGRATION.md).
+**Open problems:** see [KNOWN_ISSUES.txt](KNOWN_ISSUES.txt).
 
 The iOS app sends a prescription (the same fields as `Prescription.swift`) and gets back the
 readout text plus an MP3.
@@ -19,6 +23,7 @@ readout text plus an MP3.
    prescriptions, a `dose_logs` hypertable, and a `daily_doses` continuous aggregate
    (refreshes every 15 minutes). See [db/schema.sql](db/schema.sql).
 4. **ElevenLabs** ([src/elevenlabs.js](src/elevenlabs.js)) turns the text into speech.
+   Each MP3 is cached in `audio-cache/`, so replaying a readout costs no credits.
    If it fails, the text is still returned so the phone's built-in voice can read it.
 
 The Rx number is never read aloud.
@@ -40,6 +45,7 @@ Fill in `.env` with your own keys (never commit it):
 | `ELEVENLABS_API_KEY` | elevenlabs.io → Developers → API Keys (needs Text to Speech + Voices: Read) |
 | `XAI_API_KEY` | console.x.ai → API Keys |
 | `DATABASE_URL` | `tiger service get <service-id> --with-password` |
+| `APP_TOKEN` | Optional. Any made-up password; the app must send it as `X-App-Token`. Set it before hosting publicly. |
 
 The database tables are created by running `db/schema.sql` once on the Tiger service.
 
@@ -67,9 +73,18 @@ npm start          # or: npm run dev (restarts on changes)
 
 Returns `{ language, text, sentences, audio }`. `audio` is a base64 MP3. Each sentence is tagged
 `template`, `grok`, or `english`. Add `?format=mp3` to get the MP3 file directly, or send
-`"audio": false` for text only.
+`"audio": false` for text only. If `lastTakenAt` is left out and `prescription.key` is sent,
+the last dose is looked up in Tiger.
 
-**`GET /languages`**: supported languages. **`GET /health`**: shows which keys are set.
+| Endpoint | What it does |
+|---|---|
+| `POST /prescriptions` | Save or update a scanned bottle (same fields as `Prescription`, plus `key`) |
+| `POST /doses` | `{ prescriptionKey, takenAt, overrodeWarning }` — log a dose in the `dose_logs` hypertable |
+| `GET /prescriptions/:key/daily?days=7` | Doses per day, from the `daily_doses` continuous aggregate |
+| `GET /languages` | Supported languages |
+| `GET /health` | Shows which keys are set (true/false) |
+
+Requests are limited to 30 per minute per address.
 
 Try it with the samples:
 

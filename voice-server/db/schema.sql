@@ -62,7 +62,7 @@ ALTER MATERIALIZED VIEW daily_doses SET (timescaledb.materialized_only = false);
 -- Grok translations, saved so each label line is only translated once per language.
 CREATE TABLE translations (
     source_text      TEXT NOT NULL,
-    language         TEXT NOT NULL CHECK (language IN ('es', 'hi', 'zh', 'vi', 'ko')),
+    language         TEXT NOT NULL CHECK (language IN ('es', 'hi', 'zh', 'vi', 'ko', 'fr', 'ar')),
     translated_text  TEXT NOT NULL,
     model            TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
