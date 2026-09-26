@@ -16,11 +16,13 @@ FIXED on the server and tested:
   #17 The Swift client sends the phone's time zone.
   #19 ElevenLabs audio is cached in audio-cache/ - replaying costs no credits.
   #20 Optional APP_TOKEN password + 30 requests/minute limit.
+  #5, #6, #7  Hosted on Vultr with HTTPS: https://96-30-206-230.sslip.io
+      (Caddy + systemd, restarts on its own, APP_TOKEN required). The phone no longer
+      needs the laptop, the same Wi-Fi, or the Info.plist http exception.
 
 READY BUT NEEDS A MAC + TEAM OK (see ios/INTEGRATION.md):
   #1, #3  ios/VoiceReadout.swift + a small change to the Listen button. Server
           first, Apple translation as the offline fallback. NOT COMPILED YET.
-  #5, #6  Info.plist change for local http + laptop IP instructions.
   #8      Two one-line calls so scans and doses are saved to Tiger.
 
 STILL OPEN: #7, #9, #10 (now also French + Arabic), #11-#16, #18, #21-#25.

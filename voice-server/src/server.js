@@ -19,6 +19,9 @@ import { savePrescription, logDose, lastDose, dailyDoses } from './records.js';
 
 const app = express();
 app.use(express.json());
+// On the hosted server, Caddy (HTTPS) forwards requests from this same machine.
+// Trusting it lets the rate limit see each phone's real address.
+app.set('trust proxy', 'loopback');
 
 // Shows which keys are set (true/false) without revealing them.
 app.get('/health', (req, res) => {

@@ -18,12 +18,13 @@ import Combine
 // MARK: - Server settings
 
 enum VoiceServer {
-    /// Laptop on the same Wi-Fi: "http://<laptop IP>:3000" (run `ipconfig` on the laptop).
-    /// Hosted (e.g. Vultr): "https://your-domain".
-    static let baseURL = URL(string: "http://192.168.1.10:3000")!
+    /// The hosted server on Vultr (HTTPS, works from any network).
+    /// For a laptop on the same Wi-Fi instead: "http://<laptop IP>:3000" + the Info.plist
+    /// change in INTEGRATION.md.
+    static let baseURL = URL(string: "https://96-30-206-230.sslip.io")!
 
-    /// Must match APP_TOKEN in voice-server/.env. Leave "" if APP_TOKEN is empty.
-    static let appToken = ""
+    /// The server's app password (APP_TOKEN). Get it from Gargi; see INTEGRATION.md.
+    static let appToken = "PASTE_APP_TOKEN_HERE"
 
     /// Saves a scanned bottle in Tiger Cloud. Call after `Prescription.upsert`.
     static func sync(_ prescription: Prescription) {

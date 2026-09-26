@@ -8,9 +8,18 @@ was written on Windows and has not been compiled yet.
 Drag `voice-server/ios/VoiceReadout.swift` into the `Pill App/Pill App` folder in Xcode.
 The project uses synchronized folders, so it's picked up automatically.
 
-Set `VoiceServer.baseURL` at the top of the file:
-- Laptop on the same Wi-Fi: `http://<laptop IP>:3000` (run `ipconfig` on the laptop and use the IPv4 address)
-- Hosted on Vultr: `https://<your domain>`
+`VoiceServer.baseURL` already points at the hosted server on Vultr:
+`https://96-30-206-230.sslip.io`. It uses HTTPS, so it works from any network.
+
+Replace `PASTE_APP_TOKEN_HERE` with the server's app password. Gargi gets it by running
+this in her own terminal on her laptop (it isn't in git on purpose):
+
+```
+ssh -i ~/.ssh/pillpoint_vultr root@96.30.206.230 "cat /opt/pill-point/app.env"
+```
+
+Use the part after `APP_TOKEN=`. Without it, the server answers 401 and the app falls back
+to Apple translation.
 
 ## 2. Listen button uses the server (`Medicationdetailview.swift`, Prathithi)
 
@@ -85,9 +94,10 @@ Home, the pill scanner, and the "Log anyway" warning screen:
 
 Both run in the background and never block or break the app if the server is down.
 
-## 4. Allow the app to reach the laptop (`Pill-App-Info.plist`)
+## 4. Only if you use the laptop instead of Vultr (`Pill-App-Info.plist`)
 
-iOS blocks plain `http://` and asks permission for the local network. Replace `<dict/>` with:
+**Skip this with the hosted server.** It's only needed for a laptop at `http://<laptop IP>:3000`,
+because iOS blocks plain `http://` and asks permission for the local network. Replace `<dict/>` with:
 
 ```xml
 <dict>
@@ -106,7 +116,7 @@ whole internet. A hosted server should use https and doesn't need it.
 
 ## 5. Test
 
-1. Laptop: `cd voice-server`, `npm start`. When Windows asks, allow Node on **private networks**.
-2. iPhone on the same Wi-Fi. Tap **Allow** when iOS asks about the local network.
+1. Check the server is up: open `https://96-30-206-230.sslip.io/health` in Safari. All values should be `true`.
+2. Build and run on an iPhone (any network).
 3. Scan a bottle, open it, pick a language, tap **Listen**.
-4. Turn the server off and tap **Listen** again: it should fall back to the iPhone voice.
+4. Turn on Airplane Mode and tap **Listen** again: it should fall back to the iPhone voice.
