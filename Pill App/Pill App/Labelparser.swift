@@ -17,7 +17,7 @@ import CoreGraphics
 
 enum LabelField: String, CaseIterable, Hashable {
     case rxNumber, drugName, dosage, quantity, pharmacy, pharmacyAddress,
-         prescriber, expiration, instructions, withFood, schedule
+         prescriber, expiration, instructions, withFood, schedule, manufacturer
 
     var displayName: String {
         switch self {
@@ -32,8 +32,12 @@ enum LabelField: String, CaseIterable, Hashable {
         case .instructions:    return "directions"
         case .withFood:        return "food instructions"
         case .schedule:        return "dose times"
+        case .manufacturer:    return "manufacturer"
         }
     }
+
+    /// "Rx number", "Drug name", ... for the checklist.
+    var title: String { displayName.prefix(1).uppercased() + displayName.dropFirst() }
 }
 
 /// One line of OCR text plus where it sits (Vision coords: normalized, lower-left origin).
@@ -44,7 +48,7 @@ struct TextLine {
 
 /// Final result of a scan, before it's saved as a Prescription.
 struct ScannedLabel {
-    var rxNumber: String                 // "" if the scan ended before the Rx number was found
+    var rxNumber: String
     var drugName: String
     var dosage: String?
     var quantity: Int?
@@ -56,6 +60,7 @@ struct ScannedLabel {
     var takeWithFood: Bool?
     var timesOfDay: [String]             // from the MORNING/MIDDAY/EVENING/BEDTIME grid
     var sideEffects: [String]
+    var manufacturer: String? = nil      // "MFR: ABC Manufacturer"
 }
 
 /// What a single camera frame produced.
@@ -138,6 +143,14 @@ enum LabelParser {
         for line in lines {
             if let m = line.firstMatch(of: /^(?:PRSCBR|PRESCRIBER|DR\.?)\s*:?\s*([A-Z][A-Z.'\- ]{1,40})/) {
                 out.fields[.prescriber] = String(m.1).trimmingCharacters(in: .whitespaces)
+                break
+            }
+        }
+
+        // Manufacturer: "MFR: ABC MANUFACTURER" (used to look up what the pill looks like)
+        for line in lines {
+            if let m = line.firstMatch(of: /^(?:MFR|MFG|MANUFACTURER)\s*:?\s*([A-Z][A-Z0-9.&,'\- ]{1,50})/) {
+                out.fields[.manufacturer] = String(m.1).trimmingCharacters(in: .whitespaces)
                 break
             }
         }
@@ -266,10 +279,13 @@ enum LabelParser {
 /// votes, and a value only counts once it has been read the same way twice.
 struct LabelAccumulator {
 
-    /// Scan finishes on its own when all of these are confirmed.
+    /// Checklist on the scan screen. Scan finishes on its own when all are confirmed.
     static let required: [LabelField] = [
-        .rxNumber, .drugName, .dosage, .quantity, .pharmacyAddress, .expiration, .instructions
+        .rxNumber, .drugName, .dosage, .quantity, .instructions, .expiration
     ]
+
+    /// Must be confirmed before "Done" is allowed. Rx number is the database key.
+    static let mandatory: Set<LabelField> = [.rxNumber, .drugName]
 
     var confirmationsNeeded = 2
 
@@ -301,8 +317,12 @@ struct LabelAccumulator {
     var missingRequired: [LabelField] { Self.required.filter { value($0) == nil } }
     var isComplete: Bool { missingRequired.isEmpty }
 
-    /// "Done" is allowed once we at least know what the medication is.
-    var canFinishEarly: Bool { bestGuess(.drugName) != nil }
+    var confirmedFields: Set<LabelField> {
+        Set(LabelField.allCases.filter { value($0) != nil })
+    }
+
+    /// "Done" is allowed once the drug name and Rx number are both confirmed.
+    var canFinishEarly: Bool { Self.mandatory.allSatisfy { value($0) != nil } }
 
     var progress: Double {
         Double(Self.required.count - missingRequired.count) / Double(Self.required.count)
@@ -314,10 +334,11 @@ struct LabelAccumulator {
         func get(_ field: LabelField) -> String? {
             allowUnconfirmed ? (value(field) ?? bestGuess(field)) : value(field)
         }
-        guard let drug = get(.drugName) else { return nil }
+        // Drug name and Rx number always have to be confirmed, even when skipping.
+        guard let drug = value(.drugName), let rx = value(.rxNumber) else { return nil }
 
         return ScannedLabel(
-            rxNumber: get(.rxNumber) ?? "",
+            rxNumber: rx,
             drugName: drug,
             dosage: get(.dosage),
             quantity: get(.quantity).flatMap { Int($0) },
@@ -328,7 +349,8 @@ struct LabelAccumulator {
             instructions: get(.instructions),
             takeWithFood: get(.withFood).map { $0 == "yes" },
             timesOfDay: get(.schedule)?.split(separator: ",").map(String.init) ?? [],
-            sideEffects: sideEffectVotes.filter { $0.value >= confirmationsNeeded }.map(\.key).sorted()
+            sideEffects: sideEffectVotes.filter { $0.value >= confirmationsNeeded }.map(\.key).sorted(),
+            manufacturer: get(.manufacturer)
         )
     }
 }

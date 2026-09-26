@@ -55,7 +55,8 @@ enum ScanGuidance {
     /// Normalized, lower-left origin, for a portrait frame.
     /// TODO: compute this from the preview layer with
     /// `previewLayer.metadataOutputRectConverted(fromLayerRect:)` so it matches exactly.
-    static let regionOfInterest = CGRect(x: 0.12, y: 0.28, width: 0.76, height: 0.44)
+    /// Matches the circle in LabelScannerView (upper part of the screen) on a ~6.1" iPhone.
+    static let regionOfInterest = CGRect(x: 0.20, y: 0.56, width: 0.60, height: 0.33)
 
     /// `boxes` are Vision bounding boxes, normalized to the region of interest.
     static func hint(for boxes: [CGRect],

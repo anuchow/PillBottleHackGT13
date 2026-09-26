@@ -9,6 +9,7 @@
 import Foundation
 import SwiftData
 import AVFoundation
+import Combine
 
 // MARK: - Prescription (one row per bottle / Rx)
 
@@ -26,6 +27,7 @@ final class Prescription {
     var pharmacyName: String? = nil         // "CVS Pharmacy"
     var pharmacyAddress: String? = nil      // "123 MAIN ST, ATLANTA GA 30332"
     var prescriber: String? = nil           // "DR JANE SMITH" (optional, if found)
+    var manufacturer: String? = nil         // "MFR: ABC Manufacturer", narrows pill-appearance lookups
     var expirationDate: Date? = nil         // "DISCARD AFTER" / "USE BY" date
     var instructions: String? = nil         // raw directions: "TAKE 1 TABLET BY MOUTH TWICE DAILY WITH FOOD"
     var takeWithFood: Bool? = nil           // nil = the label doesn't say
@@ -63,6 +65,7 @@ final class Prescription {
         pharmacyName = label.pharmacyName
         pharmacyAddress = label.pharmacyAddress
         prescriber = label.prescriber
+        manufacturer = label.manufacturer
         expirationDate = label.expirationDate
         instructions = label.instructions
         takeWithFood = label.takeWithFood
@@ -147,20 +150,45 @@ final class DoseLog {
 
 // MARK: - Speaker
 
-/// Reads a saved prescription out loud.
+/// Reads text out loud and publishes whether it's speaking (for Listen/Stop buttons).
 ///     LabelSpeaker.shared.speak(prescription)
-final class LabelSpeaker {
+///     LabelSpeaker.shared.speak(text: translated, languageCode: "es-MX")
+final class LabelSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     static let shared = LabelSpeaker()
+
+    @Published private(set) var isSpeaking = false
     private let synthesizer = AVSpeechSynthesizer()
 
+    override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
+
     func speak(_ prescription: Prescription) {
+        speak(text: prescription.spokenSummary, languageCode: "en-US")
+    }
+
+    func speak(text: String, languageCode: String) {
         synthesizer.stopSpeaking(at: .immediate)
-        let utterance = AVSpeechUtterance(string: prescription.spokenSummary)
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: languageCode)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
         synthesizer.speak(utterance)
     }
 
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async { self.isSpeaking = true }
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async { self.isSpeaking = false }
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async { self.isSpeaking = false }
     }
 }
