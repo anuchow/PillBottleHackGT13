@@ -104,7 +104,7 @@ public struct WhatsAppClient: Sendable {
     private let phoneNumberID: String
     private let apiVersion: String
 
-    public init(accessToken: String, phoneNumberID: String, apiVersion: String = "v23.0") {
+    public init(accessToken: String, phoneNumberID: String, apiVersion: String = "v25.0") {
         self.accessToken = accessToken
         self.phoneNumberID = phoneNumberID
         self.apiVersion = apiVersion
