@@ -1,0 +1,12 @@
+{
+  "language": "ko",
+  "prescription": {
+    "drugName": "IBUPROFEN",
+    "dosage": "800 MG TABLET",
+    "quantity": 20,
+    "pharmacyName": "CVS Pharmacy",
+    "expirationDate": "2027-03-01",
+    "instructions": "TAKE 1 TABLET BY MOUTH EVERY 8 HOURS AS NEEDED FOR PAIN",
+    "sideEffects": ["DO NOT TAKE MORE THAN 3 TABLETS IN 24 HOURS", "TAKE WITH FOOD OR MILK"]
+  }
+}
