@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Medication: Codable, Sendable {
+public struct Medication: Codable, Sendable, Equatable {
     public var name: String
     public var dose: String
     public var schedule: String
@@ -33,8 +33,17 @@ public struct Patient: Codable, Sendable {
 
     /// e.g. "Eleanor last took Lisinopril today at 8:15 AM, and Metformin yesterday at 8:00 PM."
     public func spokenRecentDoses(now: Date = .now) -> String {
-        let items = medications.map { "\($0.name) \($0.spokenLastTaken(now: now))" }
-        return "\(name) last took \(items.formatted(.list(type: .and)))."
+        let logged = medications.filter { !$0.lastTaken.isEmpty }
+        let unlogged = medications.filter { $0.lastTaken.isEmpty }.map(\.name)
+        var sentences: [String] = []
+        if !logged.isEmpty {
+            let items = logged.map { "\($0.name) \($0.spokenLastTaken(now: now))" }
+            sentences.append("\(name) last took \(items.formatted(.list(type: .and))).")
+        }
+        if !unlogged.isEmpty {
+            sentences.append("No doses of \(unlogged.formatted(.list(type: .and))) are logged yet.")
+        }
+        return sentences.isEmpty ? "\(name) has no medications on file." : sentences.joined(separator: " ")
     }
 
     var medicationsJSON: String {

@@ -128,10 +128,10 @@ public struct WhatsAppClient: Sendable {
 }
 
 /// A temporary public HTTPS address for a local port, via `cloudflared tunnel --url` (no account needed).
-enum QuickTunnel {
-    nonisolated(unsafe) private static var process: Process?
+public enum QuickTunnel {
+    nonisolated(unsafe) private static var processes: [Process] = []
 
-    static func start(port: Int) async throws -> URL {
+    public static func start(port: Int) async throws -> URL {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["cloudflared", "tunnel", "--no-autoupdate", "--url", "http://localhost:\(port)"]
@@ -161,8 +161,10 @@ enum QuickTunnel {
             }
         }
         output.fileHandleForReading.readabilityHandler = { _ in }  // keep draining so cloudflared never blocks
-        self.process = process
-        atexit { QuickTunnel.process?.terminate() }
+        processes.append(process)
+        if processes.count == 1 {
+            atexit { QuickTunnel.processes.forEach { $0.terminate() } }
+        }
         // Give the new hostname a moment to become reachable before Twilio connects to it.
         try await Task.sleep(for: .seconds(3))
         return url
