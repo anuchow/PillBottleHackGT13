@@ -17,6 +17,7 @@ final class LabelScannerModel: NSObject, ObservableObject {
     @Published private(set) var missing: [LabelField] = LabelAccumulator.required
     @Published private(set) var result: ScannedLabel?
     @Published private(set) var canFinishEarly = false
+    @Published private(set) var confirmed: Set<LabelField> = []
 
     let session = AVCaptureSession()
     private let queue = DispatchQueue(label: "pillbottle.scanner")
@@ -51,6 +52,7 @@ final class LabelScannerModel: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 self.result = nil
                 self.canFinishEarly = false
+                self.confirmed = []
                 self.progress = 0
                 self.hint = .findLabel
                 self.missing = LabelAccumulator.required
@@ -62,7 +64,7 @@ final class LabelScannerModel: NSObject, ObservableObject {
     /// "Done" button: stop scanning and use whatever has been found so far.
     func finishEarly() {
         queue.async { [weak self] in
-            guard let self, !self.finished,
+            guard let self, !self.finished, self.accumulator.canFinishEarly,
                   let label = self.accumulator.makeScannedLabel(allowUnconfirmed: true) else { return }
             self.finished = true
             self.session.stopRunning()
@@ -144,11 +146,13 @@ extension LabelScannerModel: AVCaptureVideoDataOutputSampleBufferDelegate {
         let progress = accumulator.progress
         let missing = accumulator.missingRequired
         let canFinish = accumulator.canFinishEarly
+        let confirmed = accumulator.confirmedFields
 
         DispatchQueue.main.async {
             self.progress = progress
             self.missing = missing
             self.canFinishEarly = canFinish
+            self.confirmed = confirmed
             if let stableHint { self.hint = stableHint }
             if foundSomethingNew { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
             if let label {

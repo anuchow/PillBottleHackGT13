@@ -12,8 +12,9 @@ import SwiftData
 struct PillTrackerApp: App {
     var body: some Scene {
         WindowGroup {
-            LabelScannerView()        // was ContentView()
+            RootView()          // was LabelScannerView()
         }
         .modelContainer(for: [Prescription.self, DoseLog.self])
     }
 }
+

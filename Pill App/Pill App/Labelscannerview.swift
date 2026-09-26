@@ -11,91 +11,185 @@ import AVFoundation
 struct LabelScannerView: View {
     @StateObject private var scanner = LabelScannerModel()
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @State private var showReview = false
 
     var onSaved: (Prescription) -> Void = { _ in }
 
     var body: some View {
         GeometryReader { geo in
-            let diameter = min(geo.size.width, geo.size.height) * 0.78
+            let diameter = min(geo.size.width * 0.68, geo.size.height * 0.32)
+            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height * 0.27)
+            let done = scanner.result != nil
 
             ZStack {
                 CameraPreview(session: scanner.session)
-                    .ignoresSafeArea()
 
                 // Dim everything outside the circle.
                 Rectangle()
-                    .fill(.black.opacity(0.65))
+                    .fill(.black.opacity(0.7))
                     .overlay(
                         Circle()
                             .frame(width: diameter, height: diameter)
+                            .position(center)
                             .blendMode(.destinationOut)
                     )
                     .compositingGroup()
-                    .ignoresSafeArea()
 
-                if scanner.result != nil {
+                if done {
                     CompletionCheck()
                         .frame(width: diameter + 36, height: diameter + 36)
+                        .position(center)
                         .transition(.opacity)
                 } else {
                     TickRing(progress: scanner.progress)
                         .frame(width: diameter + 44, height: diameter + 44)
+                        .position(center)
 
                     HintArrow(hint: scanner.hint)
-                        .offset(x: scanner.hint.direction.width * (diameter / 2 - 44),
-                                y: scanner.hint.direction.height * (diameter / 2 - 44))
+                        .position(x: center.x + scanner.hint.direction.width * (diameter / 2 - 44),
+                                  y: center.y + scanner.hint.direction.height * (diameter / 2 - 44))
                 }
 
-                VStack {
-                    Spacer()
-                    VStack(spacing: 6) {
-                        Text(scanner.result == nil ? scanner.hint.message : "Label scanned")
-                            .font(.title3.weight(.semibold))
-                        if scanner.result == nil, !scanner.missing.isEmpty {
-                            Text("Still looking for " + scanner.missing.map(\.displayName).joined(separator: ", "))
-                                .font(.footnote)
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                        if scanner.result == nil, scanner.canFinishEarly {
-                            Button("Done") { scanner.finishEarly() }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.green)
-                                .padding(.top, 10)
-                        }
+                // Hint, checklist, Done
+                VStack(spacing: 16) {
+                    Color.clear.frame(height: center.y + diameter / 2 + 16)
+
+                    Text(done ? "Label scanned" : scanner.hint.message)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .animation(.easeInOut, value: scanner.hint)
+
+                    if !done {
+                        ScanChecklist(fields: LabelAccumulator.required, found: scanner.confirmed)
+                        skipControls
                     }
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 48)
-                    .animation(.easeInOut, value: scanner.hint)
+
+                    Spacer(minLength: 0)
                 }
+                .padding(.horizontal, 20)
+                .padding(.bottom, geo.safeAreaInsets.bottom + 12)
             }
-            .animation(.easeInOut(duration: 0.3), value: scanner.result != nil)
+            .animation(.easeInOut(duration: 0.3), value: done)
+        }
+        .ignoresSafeArea()
+        // Outside the full-screen layer so it respects the safe area and sits
+        // below the Dynamic Island. The results page (overlay below) covers it.
+        .overlay(alignment: .topLeading) {
+            closeButton
+                .padding(.leading, 20)
+                .padding(.top, 8)
         }
         .onAppear { scanner.start() }
         .onDisappear { scanner.stop() }
         .onChange(of: scanner.result != nil) { _, done in
             guard done else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { showReview = true }
-        }
-        .sheet(isPresented: $showReview) {
-            if let label = scanner.result {
-                LabelReviewView(label: label,
-                                onSave: { save(label) },
-                                onRescan: { showReview = false; scanner.reset() })
+            // Let the checkmark play, then slide in the results.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                withAnimation(.easeInOut(duration: 0.35)) { showReview = true }
             }
+        }
+        .overlay {
+            if showReview, let label = scanner.result {
+                ScanResultView(label: label,
+                               onAdd: { save(label) },
+                               onScanAnother: {
+                                   withAnimation(.easeInOut(duration: 0.3)) { showReview = false }
+                                   scanner.reset()
+                               })
+                .transition(.move(edge: .bottom))
+            }
+        }
+    }
+
+    // MARK: Pieces
+
+    private var closeButton: some View {
+        Button {
+            scanner.stop()
+            dismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(.white.opacity(0.18)))
+                .contentShape(Circle())
+        }
+        .accessibilityLabel("Close scanner")
+    }
+
+    /// Done lets the user stop early when the label is missing info.
+    /// It only unlocks once the drug name and Rx number are confirmed.
+    private var skipControls: some View {
+        VStack(spacing: 8) {
+            Button { scanner.finishEarly() } label: {
+                Text("Done")
+                    .font(.body.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(Capsule().fill(Color.white.opacity(scanner.canFinishEarly ? 1 : 0.2)))
+                    .foregroundStyle(scanner.canFinishEarly ? Color.ink : Color.white.opacity(0.5))
+            }
+            .disabled(!scanner.canFinishEarly)
+
+            Text(scanner.canFinishEarly
+                 ? "Can't find the rest on the label? Tap Done to skip it. Anything missing stays blank."
+                 : "Done unlocks once the drug name and Rx number are found.")
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.75))
+                .multilineTextAlignment(.center)
         }
     }
 
     private func save(_ label: ScannedLabel) {
         do {
             let prescription = try Prescription.upsert(label, in: modelContext)
-            showReview = false
             onSaved(prescription)
+            dismiss()
         } catch {
             print("Save failed: \(error)")   // TODO: show an error to the user
         }
+    }
+}
+
+// MARK: - "Looking for" checklist
+
+struct ScanChecklist: View {
+    let fields: [LabelField]
+    let found: Set<LabelField>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Looking for:")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.ink)
+
+            ForEach(fields, id: \.self) { field in
+                let isFound = found.contains(field)
+                HStack(spacing: 12) {
+                    Image(systemName: isFound ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isFound ? Color.takenGreen : Color.secondary)
+                        .contentTransition(.symbolEffect(.replace))
+                    Text(field.title)
+                        .foregroundStyle(isFound ? Color.secondary : Color.ink)
+                    Spacer()
+                    if !isFound && LabelAccumulator.mandatory.contains(field) {
+                        Text("Required")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .font(.subheadline)
+                .accessibilityElement(children: .combine)
+                .accessibilityValue(isFound ? "Found" : "Missing")
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 22).fill(.white.opacity(0.95)))
+        .animation(.easeOut(duration: 0.2), value: found)
     }
 }
 
@@ -176,53 +270,6 @@ struct HintArrow: View {
             .onAppear { nudge = true }
             .id(hint)          // new hint -> fresh view -> animation restarts
             .transition(.opacity)
-    }
-}
-
-// MARK: - Review before saving
-
-struct LabelReviewView: View {
-    let label: ScannedLabel
-    var onSave: () -> Void
-    var onRescan: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Medication") {
-                    row("Drug", label.drugName.capitalized)
-                    row("Strength", label.dosage)
-                    row("Quantity", label.quantity.map(String.init))
-                    row("Expires", label.expirationDate?.formatted(date: .abbreviated, time: .omitted))
-                }
-                Section("Directions") {
-                    row("Instructions", label.instructions?.capitalized)
-                    row("With food", label.takeWithFood.map { $0 ? "Yes" : "No" })
-                    row("When", label.timesOfDay.isEmpty ? nil : ListFormatter.localizedString(byJoining: label.timesOfDay))
-                }
-                Section("Pharmacy") {
-                    row("Pharmacy", label.pharmacyName)
-                    row("Address", label.pharmacyAddress?.capitalized)
-                    row("Prescriber", label.prescriber?.capitalized)
-                }
-                if !label.sideEffects.isEmpty {
-                    Section("Warnings") {
-                        ForEach(label.sideEffects, id: \.self) { Text($0.capitalized) }
-                    }
-                }
-            }
-            // TODO: make these rows editable so users can fix OCR mistakes before saving.
-            .navigationTitle("Check the details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Scan again", action: onRescan) }
-                ToolbarItem(placement: .confirmationAction) { Button("Save", action: onSave) }
-            }
-        }
-    }
-
-    private func row(_ title: String, _ value: String?) -> some View {
-        LabeledContent(title, value: value ?? "Not found")
     }
 }
 
