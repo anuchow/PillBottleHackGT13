@@ -28,6 +28,7 @@ final class Prescription {
     var pharmacyAddress: String? = nil      // "123 MAIN ST, ATLANTA GA 30332"
     var prescriber: String? = nil           // "DR JANE SMITH" (optional, if found)
     var manufacturer: String? = nil         // "MFR: ABC Manufacturer", narrows pill-appearance lookups
+    var isSupplement: Bool = false          // Nature Made etc. Key is "<BRAND>-LIST-<list number>"
     var expirationDate: Date? = nil         // "DISCARD AFTER" / "USE BY" date
     var instructions: String? = nil         // raw directions: "TAKE 1 TABLET BY MOUTH TWICE DAILY WITH FOOD"
     var takeWithFood: Bool? = nil           // nil = the label doesn't say
@@ -66,6 +67,7 @@ final class Prescription {
         pharmacyAddress = label.pharmacyAddress
         prescriber = label.prescriber
         manufacturer = label.manufacturer
+        isSupplement = label.isSupplement
         expirationDate = label.expirationDate
         instructions = label.instructions
         takeWithFood = label.takeWithFood
@@ -127,8 +129,12 @@ final class Prescription {
             parts.append("Warnings: " + sideEffects.map { $0.lowercased() }.joined(separator: ". ") + ".")
         }
         if let pharmacyName {
-            let address = pharmacyAddress.map { ", \($0.lowercased())" } ?? ""
-            parts.append("Filled at \(pharmacyName)\(address).")
+            if isSupplement {
+                parts.append("Made by \(pharmacyName).")
+            } else {
+                let address = pharmacyAddress.map { ", \($0.lowercased())" } ?? ""
+                parts.append("Filled at \(pharmacyName)\(address).")
+            }
         }
         return parts.joined(separator: " ")
     }

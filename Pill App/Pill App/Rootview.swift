@@ -23,8 +23,8 @@ struct RootView: View {
             case .home:    HomeView(selectedTab: $tab)
             case .meds:    MedsView()
             case .scan:    ScanChooserView(selectedTab: $tab)
-            case .chat:    PlaceholderView(title: "Chat", symbol: "message")
-            case .profile: PlaceholderView(title: "Profile", symbol: "person")
+            case .chat:    ChatView()
+            case .profile: ProfileView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

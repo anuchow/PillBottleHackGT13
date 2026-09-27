@@ -14,4 +14,5 @@ extension Color {
     static let doseAmber     = Color(red: 0.96, green: 0.78, blue: 0.45)   // "next" dot + pill badge
     static let takenGreen    = Color(red: 0.31, green: 0.56, blue: 0.43)   // taken checkmark
     static let warningRed    = Color(red: 0.84, green: 0.25, blue: 0.22)   // dose warning
+    static let assistantTint = Color(red: 0.36, green: 0.36, blue: 0.90)   // chat icons + user bubbles
 }
