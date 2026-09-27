@@ -305,64 +305,65 @@ enum LabelParser {
         }
     }
 
-    /// "SUGGESTED USE: Adults, take / 1 softgel daily with water and a meal."
+    /// Nature Made directions. The "1 softgel daily with water and a meal" line usually has
+    /// everything on its own, so check every line first; only fall back to piecing lines
+    /// together under the green "SUGGESTED USE" heading if no single line has it.
     private static func parseSuggestedUse(_ items: [TextLine], into out: inout FrameParse) {
-        // Start at the green "SUGGESTED USE" heading. If the heading didn't OCR
-        // (green on yellow is low contrast), start at the line with "TAKE" instead.
+        for item in items {
+            if let directions = canonicalDirections(item.text) {
+                out.fields[.instructions] = directions
+                return
+            }
+        }
+
         guard let start = items.first(where: { $0.text.contains("SUGGESTED USE") || $0.text.hasPrefix("DIRECTIONS") })
                 ?? items.first(where: { $0.text.firstMatch(of: /\bTAKE\b/) != nil })
         else { return }
 
         var text = start.text
-        if let colon = text.firstIndex(of: ":") {
-            text = String(text[text.index(after: colon)...])
-        } else if text.contains("SUGGESTED USE") {
-            text = ""
-        }
-
-        // The heading is green and the directions black, so OCR may split the first
-        // line in two ("SUGGESTED USE:" | "ADULTS, TAKE"). Pick up the rest of the row.
         let sameRow = items
             .filter { $0.box.minX > start.box.midX && abs($0.box.midY - start.box.midY) < start.box.height * 0.6 }
             .sorted { $0.box.minX < $1.box.minX }
-        for piece in sameRow where !text.contains(piece.text) {
-            text += " " + piece.text
-        }
+        for piece in sameRow where !text.contains(piece.text) { text += " " + piece.text }
 
-        // Then the line(s) directly below: "1 SOFTGEL DAILY WITH WATER AND A MEAL."
         var current = start
         for _ in 0..<2 {
-            guard let next = neighbor(of: current, in: items, above: false),
-                  !isStopLine(next.text) else { break }
+            guard let next = neighbor(of: current, in: items, above: false), !isStopLine(next.text) else { break }
             text += " " + next.text
             current = next
         }
 
-        if let directions = cleanDirections(text) {
+        if let directions = canonicalDirections(text) {
             out.fields[.instructions] = directions
         }
     }
 
-    /// Trims to the "take ..." sentence and normalizes it, so every frame produces the
-    /// exact same string and the votes add up:
-    /// "ADULTS, TAKE 1 SOFTGEL DAILY WITH WATER AND A MEAL. STORE..." -> "ADULTS TAKE 1 SOFTGEL DAILY WITH WATER AND A MEAL"
-    static func cleanDirections(_ raw: String) -> String? {
-        let upper = raw.uppercased()
-        guard let take = upper.range(of: "TAKE") else { return nil }
+    /// Boils the directions down to one fixed wording, so every frame reads the same thing even
+    /// when the end of the line is cut off by the bottle's curve:
+    ///   "ADULTS, TAKE 1 SOFTGEL DAILY WITH WATER AND A MEAL."  ->  "TAKE 1 SOFTGEL DAILY"
+    ///   "1 softgel daily with water and a"                     ->  "TAKE 1 SOFTGEL DAILY"
+    /// "With a meal" is read separately (withFood) and added back when the label is saved.
+    static func canonicalDirections(_ raw: String) -> String? {
+        let text = raw.uppercased()
+            .replacingOccurrences(of: "SOFT GEL", with: "SOFTGEL")
+            .replacingOccurrences(of: "|", with: "1")
 
-        var sentence = String(upper[take.lowerBound...])
-        if let period = sentence.firstIndex(of: ".") { sentence = String(sentence[..<period]) }
-        let lead = upper[..<take.lowerBound].contains("ADULTS") ? "ADULTS " : ""
+        guard let m = text.firstMatch(of: /\b(\d+|ONE|TWO|THREE|I|L)\s+(SOFTGEL|TABLET|CAPLET|CAPSULE|GUMMY|GUMMIE)S?\b[\s,]*(ONCE\s+DAILY|ONCE\s+A\s+DAY|TWICE\s+DAILY|TWICE\s+A\s+DAY|TWO\s+TIMES|THREE\s+TIMES|DAILY|EVERY\s+DAY|PER\s+DAY|A\s+DAY)/)
+        else { return nil }
 
-        var words = (lead + sentence)
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-            .map(String.init)
-        // OCR often reads the "1" right after TAKE as "I" or "L".
-        if let i = words.firstIndex(of: "TAKE"), i + 1 < words.count, ["I", "L"].contains(words[i + 1]) {
-            words[i + 1] = "1"
-        }
-        guard words.count >= 4 else { return nil }    // "TAKE 1 SOFTGEL DAILY" at minimum
-        return words.joined(separator: " ")
+        let numbers = ["ONE": "1", "TWO": "2", "THREE": "3", "I": "1", "L": "1"]
+        let count = numbers[String(m.1)] ?? String(m.1)
+        var unit = String(m.2)
+        if unit.hasPrefix("GUMM") { unit = count == "1" ? "GUMMY" : "GUMMIES" }
+        else if count != "1" { unit += "S" }
+
+        let frequency = String(m.3)
+        let often: String
+        if frequency.hasPrefix("TWICE") || frequency.hasPrefix("TWO") { often = "TWICE DAILY" }
+        else if frequency.hasPrefix("THREE") { often = "3 TIMES DAILY" }
+        else { often = "DAILY" }
+
+        return "TAKE \(count) \(unit) \(often)"
     }
 
     // MARK: Schedule grid
@@ -489,8 +490,14 @@ struct LabelAccumulator {
     /// Confirmed value (seen at least `confirmationsNeeded` times).
     func value(_ field: LabelField) -> String? {
         guard let best = votes[field]?.max(by: { $0.value < $1.value }),
-              best.value >= confirmationsNeeded else { return nil }
+              best.value >= readsNeeded(for: field) else { return nil }
         return best.key
+    }
+
+    /// Supplement directions are matched against a strict pattern ("TAKE 1 SOFTGEL DAILY"),
+    /// so one clean read is enough. Everything else needs two matching reads.
+    private func readsNeeded(for field: LabelField) -> Int {
+        kind == .supplement && field == .instructions ? 1 : confirmationsNeeded
     }
 
     /// Most-seen value, even if it's only been read once.
@@ -540,7 +547,11 @@ struct LabelAccumulator {
             pharmacyAddress: isSupplement ? nil : get(.pharmacyAddress),
             prescriber: isSupplement ? nil : get(.prescriber),
             expirationDate: get(.expiration).flatMap { LabelParser.parseDate($0) },
-            instructions: get(.instructions),
+            instructions: get(.instructions).map { directions in
+                // Supplement directions are stored in short form; add "with food" back if the label said so.
+                isSupplement && get(.withFood) == "yes" && !directions.contains("FOOD")
+                    ? directions + " WITH FOOD" : directions
+            },
             takeWithFood: get(.withFood).map { $0 == "yes" },
             timesOfDay: get(.schedule)?.split(separator: ",").map(String.init) ?? [],
             sideEffects: sideEffectVotes.filter { $0.value >= confirmationsNeeded }.map(\.key).sorted(),

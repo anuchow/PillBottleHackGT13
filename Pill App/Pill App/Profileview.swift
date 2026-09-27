@@ -149,6 +149,8 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 StreakCard(calc: calc)
+                // Refreshes whenever the number of logged doses changes.
+                TigerAdherenceCard(refreshKey: prescriptions.reduce(0) { $0 + $1.doses.count })
                 MedicationCalendarView(calc: calc, selectedDay: $selectedDay)
                 DayDetailCard(calc: calc, day: selectedDay)
 
@@ -161,6 +163,9 @@ struct ProfileView: View {
             .padding(.bottom, 24)   // the tab bar reserves its own space
         }
         .background(Color.appBackground.ignoresSafeArea())
+        // Match the phone to Tiger Data: when the screen opens, and on pull-to-refresh.
+        .task { await pullFromCloud() }
+        .refreshable { await pullFromCloud() }
         .alert("Your name", isPresented: $isEditingName) {
             TextField("Name", text: $draftName)
             Button("Save") {
@@ -169,6 +174,31 @@ struct ProfileView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    /// Adds any dose that's in Tiger Data but not on this phone (logged on another device,
+    /// or added to the database directly), so the streak, calendar and day list all
+    /// count the same doses as the database. It only adds, never deletes, so a dose
+    /// that hasn't finished uploading can't disappear from the phone.
+    @MainActor
+    private func pullFromCloud() async {
+        guard CloudSync.shared.isEnabled,
+              let cloudDoses = await CloudSync.shared.fetchDoses(days: 90) else { return }
+
+        let byKey = Dictionary(prescriptions.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        let onPhone = Set(prescriptions.flatMap { $0.doses.map(\.eventID) })
+
+        var added = false
+        for dose in cloudDoses where !onPhone.contains(dose.event_id) {
+            guard let prescription = byKey[dose.key] else { continue }   // bottle not on this phone
+            let log = DoseLog(takenAt: Date(timeIntervalSince1970: dose.taken_at),
+                              overrodeWarning: dose.overrode_warning)
+            log.eventID = dose.event_id          // same ID as the database, so it's never added twice
+            log.prescription = prescription
+            modelContext.insert(log)
+            added = true
+        }
+        if added { try? modelContext.save() }
     }
 
     private var header: some View {
@@ -215,12 +245,14 @@ struct ProfileView: View {
 
     #if DEBUG
     /// Fills the last 20 days with doses (leaving day 6 blank) so the
-    /// streak and calendar have something to show in a demo.
+    /// streak and calendar have something to show in a demo. Both buttons
+    /// also update Tiger Data, so the phone and the database stay the same.
     private var debugTools: some View {
         HStack {
             Button("Seed 20 days of doses") {
                 let cal = Calendar.current
                 for p in prescriptions where !p.asNeeded {
+                    CloudSync.shared.upsert(p)
                     for offset in 1...20 where offset != 6 {
                         let day = cal.date(byAdding: .day, value: -offset, to: .now)!
                         for i in 0..<max(p.scheduledHours.count, 1) {
@@ -228,6 +260,7 @@ struct ProfileView: View {
                             let log = DoseLog(takenAt: t, overrodeWarning: false)
                             log.prescription = p
                             modelContext.insert(log)
+                            CloudSync.shared.recordDose(log, key: p.key, source: "demo")
                         }
                     }
                 }
@@ -237,7 +270,10 @@ struct ProfileView: View {
             Button("Clear all doses", role: .destructive) {
                 // Delete the logs themselves; removing them from `doses` would leave orphans behind.
                 for p in prescriptions {
-                    for log in p.doses { modelContext.delete(log) }
+                    for log in p.doses {
+                        CloudSync.shared.deleteDose(log.eventID)   // remove it from Tiger Data too
+                        modelContext.delete(log)
+                    }
                 }
                 try? modelContext.save()
             }

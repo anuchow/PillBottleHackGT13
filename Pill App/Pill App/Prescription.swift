@@ -92,12 +92,14 @@ final class Prescription {
         if let existing = try context.fetch(descriptor).first {
             existing.apply(label)
             try context.save()
+            CloudSync.shared.upsert(existing)
             return existing
         }
 
         let prescription = Prescription(from: label)
         context.insert(prescription)
         try context.save()
+        CloudSync.shared.upsert(prescription)
         return prescription
     }
 
@@ -146,6 +148,7 @@ final class Prescription {
 final class DoseLog {
     var takenAt: Date
     var overrodeWarning: Bool          // true if the user logged it anyway after a DoseGuard warning
+    var eventID: UUID = UUID()         // same ID in the cloud (Tiger Cloud dose_events), so undo and retries match
     var prescription: Prescription?
 
     init(takenAt: Date = .now, overrodeWarning: Bool = false) {
@@ -176,6 +179,11 @@ final class LabelSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
 
     func speak(text: String, languageCode: String) {
         synthesizer.stopSpeaking(at: .immediate)
+        // The default audio setting is muted by the silent switch (which is why it only worked
+        // with headphones). "Playback" plays out loud like a podcast and lowers other audio.
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try? session.setActive(true)
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: languageCode)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
@@ -192,6 +200,8 @@ final class LabelSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegat
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         DispatchQueue.main.async { self.isSpeaking = false }
+        // Let music or podcasts come back to full volume.
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {

@@ -8,6 +8,7 @@
 
 /* Begin PBXFileReference section */
 		4CA4C58B306795BA00F6989E /* Pill App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pill App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CA4C6953068DA4500F6989E /* Pill App.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = "Pill App.xcodeproj"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -32,6 +33,7 @@
 		4CA4C582306795BA00F6989E = {
 			isa = PBXGroup;
 			children = (
+				4CA4C6953068DA4500F6989E /* Pill App.xcodeproj */,
 				4CA4C58D306795BA00F6989E /* Pill App */,
 				4CA4C58C306795BA00F6989E /* Products */,
 			);
@@ -255,6 +257,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Pill-App-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = PillBuddy;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Allow camera access?";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Allow microphone access?";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -290,6 +293,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Pill-App-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = PillBuddy;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Allow camera access?";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Allow microphone access?";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

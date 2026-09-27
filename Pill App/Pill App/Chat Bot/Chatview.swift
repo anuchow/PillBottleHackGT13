@@ -65,6 +65,11 @@ struct ChatView: View {
 
     // MARK: Start screen
 
+    private func sendDraft() {
+        model.send(model.draft)
+        composerFocused = false       // put the keyboard away so the reply is visible
+    }
+
     private var startScreen: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
@@ -102,6 +107,7 @@ struct ChatView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
         }
+        .scrollDismissesKeyboard(.immediately)
     }
 
     /// "2m ago", "3h ago", "2d ago"
@@ -145,7 +151,9 @@ struct ChatView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 8)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
+            // Tapping the conversation puts the keyboard away (buttons in it still work).
+            .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
             .onChange(of: model.messages.count) { _, _ in scrollToEnd(proxy) }
             .onChange(of: model.callLines.count) { _, _ in scrollToEnd(proxy) }
             .onChange(of: model.isThinking) { _, _ in scrollToEnd(proxy) }
@@ -189,10 +197,20 @@ struct ChatView: View {
                 .lineLimit(1...4)
                 .focused($composerFocused)
                 .submitLabel(.send)
-                .onSubmit { model.send(model.draft) }
+                .onSubmit { sendDraft() }
 
             let canSend = !model.draft.trimmingCharacters(in: .whitespaces).isEmpty && !model.isThinking
-            Button { model.send(model.draft) } label: {
+            if composerFocused {
+                Button { composerFocused = false } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 34, height: 34)
+                }
+                .accessibilityLabel("Hide keyboard")
+            }
+
+            Button { sendDraft() } label: {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.white)
