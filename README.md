@@ -18,7 +18,7 @@ PillBuddy makes sure the pill in your hand is the right one, at the right time. 
 | Bottle scanning | Reads CVS prescription and Nature Made labels: drug, strength, quantity, directions, expiration | AVFoundation, Vision |
 | AR bottle check | Green card over the right bottle, red over wrong ones, before you can log a dose | ARKit, RealityKit, Vision |
 | Pill identification | Matches a loose pill's shape, color, and imprint to your own medications | Vision, Core Image, NLM Pillbox data |
-| Overdose prevention | Blocks doses taken too soon or over the daily limit, even if logged on another device | Swift, Tiger Data |
+| Overdose prevention | Blocks doses taken too soon or over the daily limit, even if logged on another device | Swift, Tiger Data, Vultur |
 
 ### 🌐 Understand
 | Feature | What it does | Built with |
@@ -30,7 +30,7 @@ PillBuddy makes sure the pill in your hand is the right one, at the right time. 
 | Feature | What it does | Built with |
 |---|---|---|
 | Reminders & schedule | Turns label directions into dose times and reminders | SwiftData, UserNotifications |
-| Streaks & adherence | Streaks, a calendar, and a 7-day chart read from the cloud | SwiftUI, Swift Charts, Tiger Data |
+| Streaks & adherence | Streaks, a calendar, and a 7-day chart read from the cloud | SwiftUI, Swift Charts, Tiger Data, Vultur |
 | AI assistant | Answers medication questions and decides when to contact your provider | Google Gemini, OpenAI Whisper |
 | Provider calls | Calls the office, records the answer, falls back to WhatsApp | Twilio, Whisper, Gemini, WhatsApp Cloud API |
 
