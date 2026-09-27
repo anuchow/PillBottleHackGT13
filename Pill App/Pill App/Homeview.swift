@@ -11,11 +11,12 @@ struct HomeView: View {
 
     @Query(sort: \Prescription.drugName) private var prescriptions: [Prescription]
     @Environment(\.modelContext) private var modelContext
-    @AppStorage("userName") private var userName = ""   // TODO: set this from the Profile tab
+    @AppStorage("userName") private var userName = "Prathithi"   // TODO: set this from the Profile tab
 
     @State private var showBottleScanner = false
     @State private var showPillScanner = false
     @State private var activeWarning: DoseWarning?
+    @State private var bottleCheckFor: Prescription?     // Take Now -> AR bottle check
 
     var body: some View {
         let doses = ScheduledDose.today(for: prescriptions)
@@ -44,6 +45,9 @@ struct HomeView: View {
         }
         .fullScreenCover(isPresented: $showPillScanner) {
             PillScanView()
+        }
+        .fullScreenCover(item: $bottleCheckFor) { prescription in
+            ARDoseCheckView(target: prescription, all: prescriptions)
         }
         .fullScreenCover(item: $activeWarning) { warning in
             DoseWarningView(warning: warning)
@@ -127,7 +131,9 @@ struct HomeView: View {
             if !doses.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(Array(doses.enumerated()), id: \.element.id) { index, dose in
-                        DoseRow(dose: dose, isNext: dose.id == next?.id) { attemptLog(dose) }
+                        DoseRow(dose: dose, isNext: dose.id == next?.id) {
+                            dose.isTaken ? undoDose(dose) : attemptLog(dose)
+                        }
                         if index < doses.count - 1 {
                             Divider().padding(.leading, 70)
                         }
@@ -138,20 +144,26 @@ struct HomeView: View {
         }
     }
 
-    private var quickActions: some View {
-        HStack(spacing: 14) {
-            ActionCard(title: "Scan Bottle", subtitle: "Read label & log", symbol: "cross.vial") {
-                showBottleScanner = true
-            }
-            ActionCard(title: "Scan Pill", subtitle: "Identify & match", symbol: "pill") {
-                showPillScanner = true
-            }
-        }
+    /// Scan Bottle / Scan Pill now live behind the center scan button.
+    /// Only the test-only reset is left here.
+    @ViewBuilder private var quickActions: some View {
+        #if DEBUG
+        Button("Reset today's doses", action: resetTodaysDoses)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+        #endif
     }
 
     // MARK: Logging
 
+    /// Take Now or tapping a dose: check the bottle in AR first, then log from there.
     private func attemptLog(_ dose: ScheduledDose) {
+        bottleCheckFor = dose.prescription
+    }
+
+    /// Logs without the camera check (kept for reference / other entry points).
+    private func logWithoutCheck(_ dose: ScheduledDose) {
         let check = dose.prescription.checkDose()
         if check != .ok {
             activeWarning = DoseWarning(prescription: dose.prescription, check: check)
@@ -160,6 +172,27 @@ struct HomeView: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
     }
+
+    /// Tapping a green check: removes the most recent dose logged today for that medication.
+    private func undoDose(_ dose: ScheduledDose) {
+        let calendar = Calendar.current
+        guard let latest = dose.prescription.doses
+            .filter({ calendar.isDateInToday($0.takenAt) })
+            .max(by: { $0.takenAt < $1.takenAt }) else { return }
+        modelContext.delete(latest)
+        try? modelContext.save()
+    }
+
+    #if DEBUG
+    private func resetTodaysDoses() {
+        let startOfDay = Calendar.current.startOfDay(for: .now)
+        let descriptor = FetchDescriptor<DoseLog>(predicate: #Predicate { $0.takenAt >= startOfDay })
+        if let logs = try? modelContext.fetch(descriptor) {
+            for log in logs { modelContext.delete(log) }
+            try? modelContext.save()
+        }
+    }
+    #endif
 }
 
 // MARK: - Next dose card
@@ -232,8 +265,7 @@ struct DoseRow: View {
         HStack(spacing: 16) {
             Button(action: onTap) { statusIcon }
                 .buttonStyle(.plain)
-                .disabled(dose.isTaken)
-                .accessibilityLabel(dose.isTaken ? "Taken" : "Log dose")
+                .accessibilityLabel(dose.isTaken ? "Taken. Tap to undo" : "Log dose")
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(dose.prescription.displayName)

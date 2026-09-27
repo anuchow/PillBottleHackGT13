@@ -89,7 +89,8 @@ struct ScanResultView: View {
                         .padding(.top, 6)
                 }
 
-                if let line = joined(["Rx \(label.rxNumber)", quantityText]) {
+                if let line = joined([label.isSupplement ? label.listNumber.map { "List #\($0)" } : "Rx \(label.rxNumber)",
+                                      quantityText]) {
                     Text(line)
                         .foregroundStyle(.secondary)
                         .padding(.top, 8)
@@ -204,7 +205,7 @@ enum DoseFormat {
     /// "TAKE ONE TABLET BY MOUTH..." -> "1 tablet"
     static func perDose(from instructions: String?) -> String? {
         guard let text = instructions?.uppercased(),
-              let m = text.firstMatch(of: /TAKE\s+(\d+|ONE|TWO|THREE|HALF|1\/2)\s+(TABLET|CAPSULE|PILL)S?/) else { return nil }
+              let m = text.firstMatch(of: /TAKE\s+(\d+|ONE|TWO|THREE|HALF|1\/2)\s+(TABLET|CAPSULE|CAPLET|SOFTGEL|GUMMY|PILL)S?/) else { return nil }
         let numbers = ["ONE": "1", "TWO": "2", "THREE": "3", "HALF": "½", "1/2": "½"]
         let count = numbers[String(m.1)] ?? String(m.1)
         let unit = m.2.lowercased() + (count == "1" || count == "½" ? "" : "s")
@@ -215,6 +216,9 @@ enum DoseFormat {
     static func unit(perDose: String?, dosage: String?) -> String? {
         let source = (perDose ?? "") + " " + (dosage ?? "")
         let upper = source.uppercased()
+        if upper.contains("CAPLET") { return "caplet" }
+        if upper.contains("SOFTGEL") { return "softgel" }
+        if upper.contains("GUMM") { return "gummy" }
         if upper.contains("CAP") { return "capsule" }
         if upper.contains("TAB") { return "tablet" }
         if upper.contains("PILL") { return "pill" }

@@ -235,7 +235,8 @@ struct MedicationDetailView: View {
                 detail("Expires", expires.formatted(date: .abbreviated, time: .omitted))
             }
             if let pharmacy = prescription.pharmacyName {
-                detail("Pharmacy", [pharmacy, prescription.pharmacyAddress?.capitalized].compactMap { $0 }.joined(separator: "\n"))
+                detail(prescription.isSupplement ? "Brand" : "Pharmacy",
+                       [pharmacy, prescription.pharmacyAddress?.capitalized].compactMap { $0 }.joined(separator: "\n"))
             }
             if let prescriber = prescription.prescriber {
                 detail("Prescriber", prescriber.capitalized)
