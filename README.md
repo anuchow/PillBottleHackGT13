@@ -94,9 +94,9 @@ Package.swift           (Swift package; also runs as a Mac app and command-line 
 
 | Name | Role |
 |---|---|
-| Prathithi | Pill identification, AR bottle check, app design |
+| Prathithi | Pill identification, AR bottle check, App design, Bottle label scanning and dose logging |
 | Anushka | MedBot AI assistant and provider calls |
-| Aditi | Bottle label scanning and dose logging |
+| Aditi | Presentation, Demo Video, and Marketing |
 | Gargi | Cloud backend (Vultr, Tiger Data) |
 
 ## Acknowledgments
