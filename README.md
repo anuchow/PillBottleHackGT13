@@ -12,7 +12,7 @@ PillBuddy makes sure the pill in your hand is the right one, at the right time. 
 
 ## What it does
 
-### ✅ Verify
+### Verify
 | Feature | What it does | Built with |
 |---|---|---|
 | Bottle scanning | Reads CVS prescription and Nature Made labels: drug, strength, quantity, directions, expiration | AVFoundation, Vision |
@@ -20,13 +20,13 @@ PillBuddy makes sure the pill in your hand is the right one, at the right time. 
 | Pill identification | Matches a loose pill's shape, color, and imprint to your own medications | Vision, Core Image, NLM Pillbox data |
 | Overdose prevention | Blocks doses taken too soon or over the daily limit, even if logged on another device | Swift, Tiger Data, Vultur |
 
-### 🌐 Understand
+### Understand
 | Feature | What it does | Built with |
 |---|---|---|
 | Listen | Reads each medication's label information aloud | AVSpeechSynthesizer |
 | Translate | Translates it on-device into Spanish, Chinese, Hindi, French, Korean, or Arabic | Apple Translation |
 
-### 🕒 Stay on track
+### Stay on track
 | Feature | What it does | Built with |
 |---|---|---|
 | Reminders & schedule | Turns label directions into dose times and reminders | SwiftData, UserNotifications |
