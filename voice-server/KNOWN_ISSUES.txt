@@ -1,0 +1,200 @@
+PILL POINT VOICE SERVER - KNOWN ISSUES AND THINGS THAT COULD GO WRONG
+=====================================================================
+For Gargi + Prathithi to work through. Most urgent first.
+Each item: PROBLEM / WHY IT MATTERS / FIX IDEA.
+
+
+STATUS (updated after the integration fixes)
+--------------------------------------------
+FIXED on the server and tested:
+  #2  French + Arabic templates added (8 languages). App codes like "zh-Hans" and
+      "es-MX" are accepted. (Vietnamese is on the server but not in the app picker -
+      add it to AppLanguage if you want it.)
+  #4  The Swift client sends ISO dates and "yyyy-MM-dd" expiration dates.
+  #8  POST /prescriptions, POST /doses, GET /prescriptions/:key/daily now write to
+      and read from Tiger. /readout finds the last dose in Tiger by itself.
+  #17 The Swift client sends the phone's time zone.
+  #19 ElevenLabs audio is cached in audio-cache/ - replaying costs no credits.
+  #20 Optional APP_TOKEN password + 30 requests/minute limit.
+  #5, #6, #7  Hosted on Vultr with HTTPS: https://96-30-206-230.sslip.io
+      (Caddy + systemd, restarts on its own, APP_TOKEN required). The phone no longer
+      needs the laptop, the same Wi-Fi, or the Info.plist http exception.
+
+READY BUT NEEDS A MAC + TEAM OK (see ios/INTEGRATION.md):
+  #1, #3  ios/VoiceReadout.swift + a small change to the Listen button. Server
+          first, Apple translation as the offline fallback. NOT COMPILED YET.
+  #8      Two one-line calls so scans and doses are saved to Tiger.
+
+STILL OPEN: #7, #9, #10 (now also French + Arabic), #11-#16, #18, #21-#25.
+
+
+A. CONNECTING THE APP AND THE SERVER  (do these first)
+-----------------------------------------------------
+
+1. Two translate features overlap
+   PROBLEM: Prathithi's Medicationdetailview.swift already has Listen + Translate
+     using Apple's on-device Translation framework and the iPhone voice. This server
+     does the same job with templates + Grok + ElevenLabs.
+   WHY: Two buttons doing the same thing confuses users and judges.
+   FIX IDEA: The app calls this server first. If the server can't be reached (no
+     internet, server down), fall back to Prathithi's Apple translation. Pick one
+     language list for both (see #2).
+
+2. Language lists don't match
+   PROBLEM: App (AppLanguage): en, es, zh-Hans, hi, fr, ko, ar.
+            Server:            en, es, zh,      hi, vi, ko.
+   WHY: French and Arabic have no server templates; Vietnamese isn't in the app.
+     The app says "zh-Hans", the server expects "zh".
+   FIX IDEA: Decide the final list together. Adding a language = one new block in
+     src/templates.js (ElevenLabs eleven_flash_v2_5 supports fr and ar). Map
+     "zh-Hans" -> "zh" in the Swift code.
+
+3. The app doesn't call the server yet
+   PROBLEM: No Swift code sends POST /readout yet.
+   WHY: The feature only works from the command line right now.
+   FIX IDEA: Small Swift function next to LabelSpeaker that sends the Prescription
+     fields as JSON and plays the base64 MP3 with AVAudioPlayer. If "audio" is
+     missing, speak "text" with LabelSpeaker.shared.speak(text:languageCode:).
+     Ask Aditi/Prathithi before editing their files.
+
+4. Dates from Swift will be in the wrong format
+   PROBLEM: Swift's JSONEncoder sends Dates as "seconds since 2001" by default.
+   WHY: Expiration and last-dose times would be wrong or crash the date formatter.
+   FIX IDEA: encoder.dateEncodingStrategy = .iso8601, and send expirationDate as
+     "yyyy-MM-dd".
+
+5. The phone can't reach "localhost"
+   PROBLEM: The server runs on Gargi's laptop. On the iPhone, "localhost" means the
+     phone itself.
+   WHY: Demo fails unless this is set up.
+   FIX IDEA (quick): Same Wi-Fi, use the laptop's IP (http://192.168.x.x:3000).
+     Windows Firewall may ask to allow Node - click Allow.
+   FIX IDEA (better): Host on Vultr (we have an account) so it works anywhere.
+
+6. iOS blocks plain http://
+   PROBLEM: App Transport Security blocks non-HTTPS URLs.
+   WHY: Requests from the app will fail silently.
+   FIX IDEA: For the demo, add an ATS exception in Pill-App-Info.plist. For real:
+     HTTPS on Vultr with a .tech domain (also a prize track).
+
+7. Laptop sleeping = server down
+   PROBLEM: If the laptop sleeps or the terminal closes, the server stops.
+   FIX IDEA: Keep the laptop plugged in and awake during the demo, or use Vultr.
+
+
+B. DATA AND TIGER CLOUD
+-----------------------
+
+8. prescriptions and dose_logs tables are empty
+   PROBLEM: The tables, hypertable and daily_doses continuous aggregate exist, but
+     nothing writes to them. The app keeps its data on the phone (SwiftData).
+     Only the translations table is used so far.
+   WHY: For the "Best use of Tiger Data" prize we should show real data flowing.
+   FIX IDEA: Add POST /prescriptions and POST /doses to the server; the app calls
+     them after a scan and after "Log dose". Then /readout can look up the last
+     dose itself, and "Ask about my pill" can use daily_doses.
+
+9. Health data privacy
+   PROBLEM: Prescriptions are health data. The prescription key contains the Rx
+     number. The GitHub repo is public.
+   FIX IDEA: Use made-up sample prescriptions in the demo. Never commit real
+     labels or .env files.
+
+
+C. TRANSLATION AND READOUT QUALITY
+----------------------------------
+
+10. Templates not checked by native speakers
+    PROBLEM: The sentences in src/templates.js were written with AI help.
+    WHY: Medical instructions must be correct and natural.
+    FIX IDEA: Ask a native speaker for each language to read them (friends,
+      other hackers, mentors) before the demo.
+
+11. Grok can still get the meaning wrong
+    PROBLEM: The safety check only makes sure numbers match. It can't catch
+      "with food" becoming "without food".
+    WHY: That is why the original English is read after every Grok translation.
+    FIX IDEA: Keep the English readback. Show "Machine translated - ask your
+      pharmacist" on screen (Prathithi's screen already has this text).
+
+12. Grok writing numbers as words
+    PROBLEM: If Grok writes "ocho" instead of "8", the number check rejects it.
+    WHY: Safe (English is read instead), but less gets translated.
+    FIX IDEA: Watch the server log for "Grok changed a number" warnings.
+
+13. Label directions the parser doesn't understand
+    PROBLEM: src/instructions.js only knows common phrases. These go to Grok
+      instead of templates: "1/2 TABLET", "5 ML", "APPLY", "INHALE", "FOR 10 DAYS",
+      "EVERY OTHER DAY", "EVERY MORNING", "AS NEEDED FOR PAIN".
+    FIX IDEA: Add the most common ones as templates. Test with real CVS labels.
+
+14. OCR mistakes
+    PROBLEM: If the scanner reads "TAKE l TABLET" (letter L), the parser won't match.
+    WHY: Falls back to Grok/English, which is safe but less clean.
+    FIX IDEA: Mostly handled by Aditi's multi-frame voting in LabelParser.
+
+15. Drug names in other languages
+    PROBLEM: Drug names are kept in English (on purpose), so a Hindi or Korean
+      voice may pronounce "Lisinopril" oddly.
+    FIX IDEA: Listen to each language; if bad, try ElevenLabs pronunciation
+      dictionaries or a different voice.
+
+16. "Quantity" is not "pills left"
+    PROBLEM: QTY on the label is how many were filled, not how many remain.
+    FIX IDEA: Once dose_logs is used, "pills left" = quantity - doses logged since
+      the last scan.
+
+17. Time zone is fixed to Atlanta
+    PROBLEM: lastTakenAt is read in America/New_York unless the app sends timeZone.
+    FIX IDEA: The app sends TimeZone.current.identifier.
+
+
+D. API KEYS, COST AND SECURITY
+------------------------------
+
+18. ElevenLabs key was exposed
+    PROBLEM: The key was pasted in a chat.
+    FIX IDEA: Delete it in ElevenLabs -> Developers -> API Keys, make a new one,
+      put it in .env.
+
+19. ElevenLabs free plan limits
+    PROBLEM: Free accounts can't use Voice Library voices through the API, so we
+      use the built-in voice "Sarah". The key has a 20,000 character limit.
+      One readout is about 300-600 characters, and audio is NOT cached - every
+      tap costs credits.
+    FIX IDEA: Cache MP3s (same text + language = same audio). Raise the limit if
+      needed.
+
+20. Anyone with the server URL can use our credits
+    PROBLEM: No login or token on the server, no rate limit.
+    WHY: Once it's public on Vultr, strangers could run up ElevenLabs/xAI costs.
+    FIX IDEA: Require a shared secret header from the app, and add a simple rate
+      limit, before deploying.
+
+21. First readout in a new language is slow
+    PROBLEM: Each new Grok translation takes about 4-5 seconds (then it's cached
+      in Tiger and takes ~0.2 s). ElevenLabs adds a few more seconds.
+    FIX IDEA: Run each demo prescription once before presenting to warm the cache.
+
+22. Model names can change
+    PROBLEM: XAI_MODEL=grok-4.3 and ELEVENLABS_MODEL=eleven_flash_v2_5 are set in
+      .env. Providers rename/retire models.
+    FIX IDEA: If you see a 404/400 "model" error, check the provider's model list
+      and update .env - no code change needed.
+
+23. Big responses on slow Wi-Fi
+    PROBLEM: The MP3 is sent as base64 inside JSON (~600-800 KB).
+    FIX IDEA: Fine for the demo. Later: return a URL to the audio instead.
+
+
+E. NOT BUILT YET
+----------------
+
+24. Grok Voice "Ask about my pill" (stretch goal for the xAI prize)
+    Users ask by voice "When did I last take this?" and Grok answers using only
+    their label and dose history. Must refuse medical questions and point to the
+    pharmacist. Depends on #8.
+
+25. Medical safety wording
+    DoseGuard's spacing rules are app heuristics, not clinical advice. Add a short
+    "not medical advice - ask your pharmacist" line to the demo and the app.
